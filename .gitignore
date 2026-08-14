@@ -3,3 +3,5 @@ CMakeCache.txt
 *.o
 test
 code
+test_edge
+test_edge.c
