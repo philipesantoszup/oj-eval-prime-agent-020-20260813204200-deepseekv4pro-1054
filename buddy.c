@@ -53,7 +53,7 @@ static void fl_remove(int rank, int idx) {
 /* ---- implementation ---- */
 
 int init_page(void *p, int pgcount) {
-    int r, page_idx, remaining;
+    int r;
 
     if (!p || pgcount <= 0 || pgcount > MAX_PAGES)
         return -EINVAL;
@@ -66,22 +66,25 @@ int init_page(void *p, int pgcount) {
     memset(block_rank,  0, (size_t)total_pages);
     memset(block_alloc,  0, (size_t)total_pages);
     memset(free_head, -1, sizeof(free_head));
-    memset(free_next, -1, sizeof(free_next));
+    memset(free_next, -1, (size_t)total_pages * sizeof(int));
     memset(free_cnt,   0, sizeof(free_cnt));
 
-    /* decompose pgcount into power-of-2 blocks, largest rank first */
-    remaining = pgcount;
-    page_idx  = 0;
-    for (r = MAX_RANK; r >= 1 && remaining > 0; r--) {
-        int blk_sz = 1 << (r - 1);          /* pages in a rank-r block */
-        while (remaining >= blk_sz) {
-            is_boundary[page_idx] = 1;
-            block_rank[page_idx]  = (char)r;
-            block_alloc[page_idx] = 0;
-            fl_add(r, page_idx);
-            page_idx  += blk_sz;
-            remaining -= blk_sz;
-        }
+    /* find the largest power-of-2 <= pgcount; buddy system needs power-of-2 */
+    {
+        int max_p2 = 1;
+        while (max_p2 * 2 <= pgcount && max_p2 < (1 << (MAX_RANK - 1)))
+            max_p2 <<= 1;
+        total_pages = max_p2;   /* only manage the power-of-2 portion */
+
+        /* determine max rank from total_pages */
+        r = 1;
+        while ((1 << (r - 1)) < total_pages) r++;
+
+        /* one free block covering the entire managed region */
+        is_boundary[0] = 1;
+        block_rank[0]  = (char)r;
+        block_alloc[0] = 0;
+        fl_add(r, 0);
     }
 
     return OK;
