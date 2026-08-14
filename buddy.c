@@ -139,8 +139,10 @@ int return_pages(void *p) {
     }
     if (page_idx >= total_pages) return -EINVAL;
 
-    /* must be the start of an allocated block */
-    if (!is_boundary[page_idx] || !block_alloc[page_idx])
+    /* find the start of the containing block (walk back if needed) */
+    while (page_idx >= 0 && !is_boundary[page_idx])
+        page_idx--;
+    if (page_idx < 0 || !block_alloc[page_idx])
         return -EINVAL;
 
     rank     = (int)block_rank[page_idx];
