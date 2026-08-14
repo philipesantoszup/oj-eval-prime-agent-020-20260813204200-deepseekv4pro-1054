@@ -128,13 +128,14 @@ int return_pages(void *p) {
 
     if (!p) return -EINVAL;
 
-    /* alignment & range check */
+    /* range & alignment check */
+    if ((char *)p < (char *)pool_start) return -EINVAL;
     {
         unsigned long off = (unsigned long)((char *)p - (char *)pool_start);
         if (off % PAGE_SIZE != 0) return -EINVAL;
         page_idx = (int)(off / PAGE_SIZE);
     }
-    if (page_idx < 0 || page_idx >= total_pages) return -EINVAL;
+    if (page_idx >= total_pages) return -EINVAL;
 
     /* must be the start of an allocated block */
     if (!is_boundary[page_idx] || !block_alloc[page_idx])
@@ -155,10 +156,16 @@ int return_pages(void *p) {
 
         /* buddy is free, same rank → merge */
         fl_remove(rank, buddy_idx);
-        is_boundary[buddy_idx] = 0;
-        block_rank[buddy_idx]  = 0;
 
-        if (buddy_idx < page_idx) page_idx = buddy_idx;
+        /* clear both old boundaries, keep the left one */
+        if (buddy_idx < page_idx) {
+            is_boundary[page_idx] = 0;
+            block_rank[page_idx]  = 0;
+            page_idx = buddy_idx;
+        } else {
+            is_boundary[buddy_idx] = 0;
+            block_rank[buddy_idx]  = 0;
+        }
         rank++;
         is_boundary[page_idx] = 1;
         block_rank[page_idx]  = (char)rank;
@@ -174,12 +181,13 @@ int query_ranks(void *p) {
 
     if (!p) return -EINVAL;
 
+    if ((char *)p < (char *)pool_start) return -EINVAL;
     {
         unsigned long off = (unsigned long)((char *)p - (char *)pool_start);
         if (off % PAGE_SIZE != 0) return -EINVAL;
         page_idx = (int)(off / PAGE_SIZE);
     }
-    if (page_idx < 0 || page_idx >= total_pages) return -EINVAL;
+    if (page_idx >= total_pages) return -EINVAL;
 
     /* walk back to the containing block's start */
     while (page_idx >= 0 && !is_boundary[page_idx])
